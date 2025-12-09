@@ -355,11 +355,36 @@ class IntelligentChunker:
         chunk_size = chunk_size or self.default_chunk_size
         overlap = overlap or self.default_overlap
 
+        import time
+        start_time = time.time()
+
         all_chunks = []
         chunk_index = 0
 
         # Process pages in order
-        for page in parsed_doc.pages:
+        total_text_blocks = sum(len(page.text_blocks) for page in parsed_doc.pages)
+        processed_text_blocks = 0
+        
+        logger.info(
+            f"Starting chunking for {document_id}: {len(parsed_doc.pages)} pages, "
+            f"{total_text_blocks} text blocks to process"
+        )
+        
+        for page_num, page in enumerate(parsed_doc.pages, 1):
+            logger.debug(
+                f"Processing page {page_num}/{len(parsed_doc.pages)} for {document_id}: "
+                f"{len(page.text_blocks)} text blocks"
+            )
+            
+            # Log progress for large documents
+            if total_text_blocks > 50 and page_num % 2 == 0:
+                logger.info(
+                    f"Chunking progress for {document_id}: "
+                    f"page {page_num}/{len(parsed_doc.pages)}, "
+                    f"{processed_text_blocks}/{total_text_blocks} text blocks processed, "
+                    f"{chunk_index} chunks created so far"
+                )
+            
             # Group content by column for multi-column layouts
             column_content = {}
 
@@ -399,12 +424,31 @@ class IntelligentChunker:
                 )
 
                 # Process text blocks
-                for text_block in text_blocks:
-                    text_chunks = self.chunk_text_block(
-                        text_block, document_id, chunk_index, chunk_size, overlap
-                    )
-                    all_chunks.extend(text_chunks)
-                    chunk_index += len(text_chunks)
+                for text_block_idx, text_block in enumerate(text_blocks):
+                    try:
+                        text_chunks = self.chunk_text_block(
+                            text_block, document_id, chunk_index, chunk_size, overlap
+                        )
+                        all_chunks.extend(text_chunks)
+                        chunk_index += len(text_chunks)
+                        processed_text_blocks += 1
+                        
+                        # Log progress every 50 text blocks for very large documents
+                        if total_text_blocks > 100 and processed_text_blocks % 50 == 0:
+                            logger.info(
+                                f"Chunking progress for {document_id}: "
+                                f"{processed_text_blocks}/{total_text_blocks} text blocks processed, "
+                                f"{chunk_index} chunks created"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Error chunking text block {text_block_idx} on page {page_num} "
+                            f"for {document_id}: {str(e)}",
+                            exc_info=True
+                        )
+                        # Continue with next block instead of failing completely
+                        processed_text_blocks += 1
+                        continue
 
                 # Process tables (each table is a single chunk)
                 for table in content["tables"]:
@@ -430,9 +474,19 @@ class IntelligentChunker:
             for chunk in all_chunks:
                 chunk.additional_metadata["document_type"] = document_type
 
+        elapsed_time = time.time() - start_time
+        
+        # Warn if creating a very large number of chunks (potential memory issue)
+        if total_chunks > 1000:
+            logger.warning(
+                f"Created {total_chunks} chunks for document {document_id}. "
+                f"This may cause memory issues. Consider increasing chunk_size "
+                f"or processing in batches."
+            )
+        
         logger.info(
             f"Chunked document {document_id}: {total_chunks} chunks created "
-            f"(chunk_size={chunk_size}, overlap={overlap})"
+            f"(chunk_size={chunk_size}, overlap={overlap}) in {elapsed_time:.2f}s"
         )
 
         return all_chunks

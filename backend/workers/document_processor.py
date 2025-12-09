@@ -160,20 +160,114 @@ class DocumentProcessor:
             Exception: If chunking fails
         """
         try:
-            logger.info(f"Chunking document {document_id}")
-
-            # Chunk document
-            chunks = chunker.chunk_document(
-                parsed_doc=parsed_doc,
-                document_id=document_id,
-                document_type=document_type,
+            total_text_blocks = sum(len(page.text_blocks) for page in parsed_doc.pages)
+            logger.info(
+                f"Chunking document {document_id}: {len(parsed_doc.pages)} pages, "
+                f"{total_text_blocks} text blocks, {len(parsed_doc.tables)} tables, "
+                f"{len(parsed_doc.images)} images"
             )
+
+            # Log memory usage before chunking (optional, psutil not required)
+            try:
+                import psutil
+                import os
+                process = psutil.Process(os.getpid())
+                mem_info = process.memory_info()
+                logger.info(
+                    f"Memory before chunking: {mem_info.rss / 1024 / 1024:.2f} MB "
+                    f"(RSS), {mem_info.vms / 1024 / 1024:.2f} MB (VMS)"
+                )
+            except (ImportError, Exception):
+                # psutil not available or failed - not critical
+                pass
+
+            # Run chunking in thread pool to avoid blocking event loop
+            # This is important for large documents with many text blocks
+            import asyncio
+            import concurrent.futures
+
+            # Create a wrapper function to ensure proper error handling
+            def chunk_wrapper(parsed_doc, document_id, document_type):
+                """Wrapper for chunking to ensure proper error handling."""
+                try:
+                    logger.info(f"Starting chunking in thread pool for {document_id}")
+                    result = chunker.chunk_document(
+                        parsed_doc=parsed_doc,
+                        document_id=document_id,
+                        document_type=document_type,
+                    )
+                    logger.info(f"Completed chunking in thread pool for {document_id}")
+                    return result
+                except MemoryError as e:
+                    logger.error(
+                        f"MemoryError during chunking for {document_id}: {str(e)}",
+                        exc_info=True
+                    )
+                    raise
+                except Exception as e:
+                    logger.error(
+                        f"Error during chunking for {document_id}: {str(e)}",
+                        exc_info=True
+                    )
+                    raise
+
+            loop = asyncio.get_event_loop()
+            try:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    # Run chunking in thread pool with timeout
+                    logger.info(f"Scheduling chunking task for {document_id}")
+                    chunks = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            executor,
+                            chunk_wrapper,
+                            parsed_doc,
+                            document_id,
+                            document_type,
+                        ),
+                        timeout=300.0,  # 5 minute timeout
+                    )
+                    logger.info(f"Chunking task completed for {document_id}")
+            except asyncio.TimeoutError:
+                logger.error(
+                    f"Chunking timed out after 5 minutes for document {document_id}"
+                )
+                raise Exception("Chunking operation timed out")
+            except MemoryError as e:
+                logger.error(
+                    f"Out of memory during chunking for document {document_id}: {str(e)}"
+                )
+                raise Exception(
+                    f"Out of memory during chunking. Document may be too large. "
+                    f"Consider processing in smaller batches."
+                )
+
+            # Log memory usage after chunking (optional, psutil not required)
+            try:
+                import psutil
+                import os
+                process = psutil.Process(os.getpid())
+                mem_info = process.memory_info()
+                logger.info(
+                    f"Memory after chunking: {mem_info.rss / 1024 / 1024:.2f} MB "
+                    f"(RSS), {mem_info.vms / 1024 / 1024:.2f} MB (VMS), "
+                    f"{len(chunks)} chunks created"
+                )
+            except (ImportError, Exception):
+                pass
+            
+            # Warn if too many chunks (potential memory issue)
+            if len(chunks) > 1000:
+                logger.warning(
+                    f"Created {len(chunks)} chunks for document {document_id}. "
+                    f"This is a large number and may cause memory issues during "
+                    f"embedding generation or storage."
+                )
 
             logger.info(f"Created {len(chunks)} chunks for document {document_id}")
             return chunks
 
         except Exception as e:
-            logger.error(f"Failed to chunk document {document_id}: {str(e)}")
+            logger.error(f"Failed to chunk document {document_id}: {str(e)}", exc_info=True)
             raise
 
     async def generate_embeddings(self, chunks: List[Chunk]) -> List[List[float]]:

@@ -23,6 +23,16 @@ from services import storage_service
 from services.embedding_service import embedding_service
 from workers.document_processor import document_processor
 
+# Configure structured logging
+# Note: request_id will be added via custom log record factory
+logging.basicConfig(
+    level=getattr(logging, settings.log_level),
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+    ],
+)
+
 logger = logging.getLogger(__name__)
 
 # Global state for graceful shutdown
