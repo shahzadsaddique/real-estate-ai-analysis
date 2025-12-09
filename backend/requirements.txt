@@ -1,0 +1,84 @@
+# Real Estate AI Analysis Platform - Backend Dependencies
+# Python 3.11+ required
+
+# ============================================================================
+# FastAPI Core & Server
+# ============================================================================
+# FastAPI: Modern async web framework for building APIs
+fastapi==0.104.1
+# Uvicorn: ASGI server for running FastAPI
+uvicorn[standard]==0.24.0
+# Python multipart: For handling file uploads
+python-multipart==0.0.6
+# Pydantic: Data validation using Python type annotations
+pydantic==2.5.0
+# Pydantic Settings: Settings management using Pydantic
+pydantic-settings==2.1.0
+# Email Validator: Required for Pydantic email validation
+email-validator==2.2.0
+
+# ============================================================================
+# Google Cloud Platform Services
+# ============================================================================
+# Cloud Storage: For storing uploaded PDF documents
+google-cloud-storage==2.14.0
+# Firestore: NoSQL database for document metadata and user data
+google-cloud-firestore==2.13.1
+# Pub/Sub: Async message queue for document processing tasks
+google-cloud-pubsub==2.18.4
+
+# ============================================================================
+# LangChain & LLM Orchestration
+# ============================================================================
+# LangChain Core: Framework for building LLM applications
+langchain==0.1.0
+# LangChain Google Vertex AI: Integration with Google's Vertex AI
+langchain-google-vertexai==0.0.6
+# LangChain Community: Community-contributed integrations
+langchain-community==0.0.10
+
+# ============================================================================
+# Vector Database
+# ============================================================================
+# Pinecone Client: Serverless vector database for embeddings
+# Upgraded to v5+ for serverless index support
+pinecone>=5.0.0
+
+# ============================================================================
+# Document Processing & ML
+# ============================================================================
+# Transformers: Hugging Face transformers for LayoutLMv3 model
+transformers==4.35.2
+# PyTorch: Deep learning framework (CPU version for Cloud Run)
+torch==2.2.2
+# PDF Plumber: PDF text extraction with layout awareness
+pdfplumber==0.10.3
+# PyPDF: PDF manipulation library
+pypdf==3.17.1
+# Pillow: Image processing for document images
+Pillow==10.1.0
+# PDF2Image: Convert PDF pages to images (requires poppler-utils system package)
+# Install poppler: macOS: brew install poppler, Ubuntu: apt-get install poppler-utils
+pdf2image==1.16.3
+
+# ============================================================================
+# Configuration & Environment
+# ============================================================================
+# Python Dotenv: Load environment variables from .env files
+python-dotenv==1.0.0
+
+# ============================================================================
+# HTTP Clients (Async)
+# ============================================================================
+# HTTPX: Modern async HTTP client
+httpx==0.25.2
+# AioHTTP: Async HTTP client/server framework
+aiohttp==3.9.1
+
+# ============================================================================
+# Testing
+# ============================================================================
+# Pytest: Testing framework
+pytest==7.4.3
+# Pytest Asyncio: Async test support for pytest
+pytest-asyncio==0.21.1
